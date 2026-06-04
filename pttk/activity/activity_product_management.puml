@@ -1,0 +1,42 @@
+@startuml Activity Diagram - Product management
+|Quản trị viên|
+start
+:Gửi thông tin tạo sản phẩm (ProductRequest);
+note right
+  Tên, Giá, Mô tả, CategoryId, BrandId,
+  Danh sách ImageUrls, Danh sách Variants
+end note
+
+|Hệ thống (ProductService)|
+:Tự động tạo Slug từ tên;
+:Khởi tạo ProductEntity cơ bản;
+
+if (Có CategoryId/BrandId?) then (Có)
+  :Tìm Category/Brand theo ID trong DB;
+  if (Không tìm thấy?) then (Có)
+    :Trả về lỗi 404 (ResourceNotFoundException);
+    stop
+  endif
+  :Gán Category/Brand vào Product;
+endif
+
+:Lưu Product vào Cơ sở dữ liệu (lần 1);
+
+if (Có ImageUrls?) then (Có)
+  :Tạo danh sách ProductImageEntity 
+  (Ảnh đầu tiên isPrimary=true);
+  :Lưu vào DB;
+endif
+
+if (Có Variants?) then (Có)
+  :Tạo danh sách ProductVariantEntity;
+  :Tự động sinh SKU nếu thiếu;
+  :Lưu vào DB;
+endif
+
+:Lấy lại Product chi tiết (getProductById);
+:Tạo ProductResponse;
+:Trả về thông báo Thành công;
+stop
+
+@enduml

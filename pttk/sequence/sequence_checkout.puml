@@ -1,0 +1,85 @@
+@startuml Sequence Diagram - Checkout Process
+actor Customer
+participant "OrderController" as Controller
+participant "OrderService" as Service
+participant "CartItemRepository" as CartRepo
+participant "ProductVariantRepository" as VariantRepo
+participant "CouponRepository" as CouponRepo
+participant "OrderRepository" as OrderRepo
+participant "PaymentRepository" as PaymentRepo
+participant "NotificationService" as NotifServ
+database "Database" as DB
+
+Customer -> Controller : POST /api/orders (OrderRequest)
+activate Controller
+
+Controller -> Service : createOrder(userId, request, httpRequest)
+activate Service
+
+Service -> CartRepo : findByUserIdOrderByCreatedAtDesc(userId)
+activate CartRepo
+CartRepo -> DB : Query cart items
+DB --> CartRepo : List<CartItemEntity>
+CartRepo --> Service : List<CartItemEntity>
+deactivate CartRepo
+
+alt Giỏ hàng trống
+    Service --> Controller : throw BadRequestException("Giỏ hàng trống")
+    Controller --> Customer : 400 Bad Request (ApiResponse)
+end
+
+Service -> Service : Validate stock & tính subtotal\n(duyệt CartItem -> variant.stockQuantity)
+
+opt Có couponCode
+    Service -> CouponRepo : findByCode(couponCode)
+    activate CouponRepo
+    CouponRepo -> DB : Query coupon
+    DB --> CouponRepo : CouponEntity
+    CouponRepo --> Service : CouponEntity
+    deactivate CouponRepo
+    Service -> Service : Validate coupon & tính discountAmount
+    Service -> CouponRepo : save(coupon tăng usedCount)
+end
+
+Service -> OrderRepo : save(OrderEntity)
+activate OrderRepo
+OrderRepo -> DB : Insert Order
+DB --> OrderRepo : SavedOrder
+OrderRepo --> Service : OrderEntity
+deactivate OrderRepo
+
+Service -> VariantRepo : save(variant) - trừ stockQuantity
+activate VariantRepo
+VariantRepo -> DB : Update stock quantity
+DB --> VariantRepo : Success
+VariantRepo --> Service : Success
+deactivate VariantRepo
+
+Service -> CartRepo : deleteByUserId(userId)
+activate CartRepo
+CartRepo -> DB : Delete CartItems
+DB --> CartRepo : Success
+CartRepo --> Service : Success
+deactivate CartRepo
+
+opt Phương thức COD
+    Service -> PaymentRepo : save(PaymentEntity - PENDING)
+    activate PaymentRepo
+    PaymentRepo -> DB : Insert payment record
+    DB --> PaymentRepo : Success
+    PaymentRepo --> Service : Success
+    deactivate PaymentRepo
+end
+
+Service -> NotifServ : sendOrderNotification(orderResponse)
+activate NotifServ
+NotifServ --> Service : void
+deactivate NotifServ
+
+Service --> Controller : OrderResponse
+deactivate Service
+
+Controller --> Customer : 200 OK (ApiResponse)
+deactivate Controller
+
+@enduml

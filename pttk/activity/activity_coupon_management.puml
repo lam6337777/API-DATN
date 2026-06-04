@@ -1,0 +1,44 @@
+@startuml Activity Diagram - Coupon Management
+|Quản trị viên (Admin)|
+start
+:Tạo mã giảm giá (POST /api/admin/coupons);
+note right
+  Form Data: code, type, value, 
+  minOrderAmount, usageLimit, startDate, endDate
+end note
+
+|Hệ thống (AdminCouponController)|
+if (Mã giảm giá đã tồn tại?) then (Có)
+  :Trả về lỗi 400 (Mã đã tồn tại);
+  stop
+else (Không)
+  :Lưu CouponEntity vào DB;
+  :Trả về thông báo Thành công;
+endif
+
+|Khách hàng|
+:Sử dụng mã tại Checkout (OrderService);
+
+|Hệ thống (OrderService)|
+:Lấy CouponEntity từ DB;
+if (Kiểm tra hợp lệ?) then (Hợp lệ)
+  note right
+    - isActive == true
+    - startDate <= now <= endDate
+    - usedCount < usageLimit
+    - subtotal >= minOrderAmount
+  end note
+  :Tính toán số tiền giảm giá (PERCENT / FIXED);
+  if (PERCENT && discount > maxDiscount?) then (Có)
+    :discount = maxDiscount;
+  endif
+  :Tăng usedCount += 1;
+  :Lưu Coupon;
+  :Cập nhật giá trị đơn hàng;
+else (Không hợp lệ)
+  :Trả về lỗi (Hết hạn/Chưa đạt tối thiểu/Hết lượt);
+  stop
+endif
+
+stop
+@enduml

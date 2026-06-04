@@ -1,0 +1,63 @@
+@startuml Sequence Diagram - Login Process
+actor "Người dùng / Admin" as User
+participant "AuthController" as Controller
+participant "AuthService" as Service
+participant "AuthenticationManager" as AuthManager
+participant "UserRepository" as Repo
+participant "JwtService" as JWT
+database "Database" as DB
+
+User -> Controller : POST /api/auth/login (email, password, isAdmin)
+activate Controller
+
+Controller -> Service : login(request)
+activate Service
+
+Service -> AuthManager : authenticate(UsernamePasswordAuthenticationToken)
+activate AuthManager
+AuthManager -> DB : Load user & verify password
+DB --> AuthManager : result
+
+alt Xác thực thất bại (sai email/mật khẩu)
+    AuthManager --> Service : throw Exception
+    Service --> Controller : throw BadRequestException("Email hoặc mật khẩu không đúng")
+    Controller --> User : 400 Bad Request
+end
+
+AuthManager --> Service : Authentication OK
+deactivate AuthManager
+
+Service -> Repo : findByEmail(email)
+activate Repo
+Repo -> DB : Query user
+DB --> Repo : UserEntity
+Repo --> Service : Optional<UserEntity>
+deactivate Repo
+
+alt Tài khoản bị vô hiệu hóa
+    Service --> Controller : throw BadRequestException("Tài khoản đã bị vô hiệu hóa")
+    Controller --> User : 400 Bad Request
+end
+
+== Kiểm tra quyền hạn (Role Check) ==
+
+opt Nếu đăng nhập trang Admin
+    Service -> Service : Kiểm tra user.getRole() == ADMIN
+    alt Không phải ADMIN
+        Service --> Controller : throw BadRequestException("Bạn không có quyền truy cập quản trị")
+        Controller --> User : 403 Forbidden / 400 Bad Request
+    end
+end
+
+Service -> JWT : generateToken(user)
+activate JWT
+JWT --> Service : tokenString
+deactivate JWT
+
+Service --> Controller : UserResponse (với token & role)
+deactivate Service
+
+Controller --> User : 200 OK (ApiResponse)
+deactivate Controller
+
+@enduml

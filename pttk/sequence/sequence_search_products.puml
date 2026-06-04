@@ -1,0 +1,32 @@
+@startuml Sequence Diagram - Search & Filter Products
+actor User
+participant "ProductController" as Controller
+participant "ProductService" as Service
+participant "ProductRepository" as Repo
+database "Database" as DB
+
+User -> Controller : GET /api/products (category, brand, minPrice, maxPrice, size, q, sortBy, page, size)
+activate Controller
+
+Controller -> Service : getProducts(category, brand, minPrice, maxPrice, size, keyword, sortBy, page, size)
+activate Service
+
+Service -> Service : Build Pageable (Sort by sortBy)
+Service -> Service : Format searchKeyword (%keyword%)
+
+Service -> Repo : filterProducts(category, brand, minPrice, maxPrice, size, keyword, pageable)
+activate Repo
+Repo -> DB : Query products with dynamic WHERE clause
+DB --> Repo : Page<ProductEntity>
+Repo --> Service : Page<ProductEntity>
+deactivate Repo
+
+Service -> Service : Map Entity to ProductResponse (toProductResponse)
+
+Service --> Controller : Page<ProductResponse>
+deactivate Service
+
+Controller --> User : 200 OK (ApiResponse)
+deactivate Controller
+
+@enduml

@@ -1,0 +1,36 @@
+@startuml Sequence Diagram - Return Request Processing
+
+actor "Khách hàng" as Customer
+participant "Mobile/Web App" as UI
+participant "ReturnRequestController" as Controller
+participant "ReturnRequestService" as Service
+database "MySQL" as DB
+
+== Gửi yêu cầu ==
+Customer -> UI: Chọn sản phẩm & Gửi yêu cầu Hoàn hàng
+UI -> Controller: POST /api/return-requests
+Controller -> Service: createRequest(userId, request)
+Service -> DB: Kiểm tra & Lưu ReturnRequest (PENDING)
+Service -> DB: Cập nhật trạng thái OrderItem & Order
+Service --> Controller: ReturnRequestResponse
+Controller --> UI: 200 OK
+
+== Admin Duyệt/Từ chối ==
+actor "Quản trị viên" as Admin
+Admin -> UI: Xem danh sách & Xử lý
+UI -> Controller: POST /api/return-requests/{id}/approve
+Controller -> Service: approveRequest(id, adminNote)
+
+alt Duyệt (Approve)
+    Service -> DB: Cập nhật tồn kho (Tăng)
+    Service -> DB: Cập nhật trạng thái đơn hàng (RETURNED)
+else Từ chối (Reject)
+    Service -> DB: Khôi phục trạng thái đơn (DELIVERED)
+end
+
+Service -> DB: Lưu thay đổi
+Service --> Controller: ReturnRequestResponse
+Controller --> UI: 200 OK
+UI -> Customer: Nhận thông báo
+
+@enduml

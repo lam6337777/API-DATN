@@ -1,0 +1,37 @@
+@startuml Activity Diagram - Notification System
+|Hệ thống sinh sự kiện|
+start
+:Sự kiện (Event) xảy ra;
+
+if (Loại sự kiện?) then (Đơn hàng / Đổi trả)
+  |Hệ thống (NotificationService)|
+  :Tạo NotificationEntity (ORDER / RETURN);
+  :Lưu vào Cơ sở dữ liệu;
+  :Gửi WebSocket message qua SimpMessagingTemplate
+  (Topic: /topic/admin/orders hoặc /topic/admin/returns);
+else (Chat Message)
+  |Hệ thống (NotificationService)|
+  if (Người gửi là CUSTOMER?) then (Có)
+    :Tạo NotificationEntity (CHAT);
+    :Lưu vào Cơ sở dữ liệu;
+    :Gửi WebSocket cho Admin 
+    (Topic: /topic/admin/chat);
+  else (Không - Admin gửi)
+  endif
+  :Gửi WebSocket cho Người nhận
+  (Topic: /topic/chat/{receiverId});
+endif
+
+|Người nhận (Admin/Customer)|
+:Nhận thông báo qua WebSocket / Xem danh sách;
+
+if (Đánh dấu đã đọc?) then (Tất cả)
+  :PUT /mark-all-read;
+  :Cập nhật isRead = true toàn bộ;
+else (Từng thông báo)
+  :PUT /{id}/read;
+  :Đảo ngược trạng thái isRead;
+endif
+
+stop
+@enduml

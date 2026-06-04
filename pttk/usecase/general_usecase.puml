@@ -1,0 +1,47 @@
+@startuml Shoe Store - General Use Case
+left to right direction
+actor "Khách vãng lai" as Guest
+actor "Khách hàng" as Customer
+actor "Quản trị viên" as Admin
+
+rectangle "Hệ thống Shoe Store API" {
+    usecase "Xem & Tìm kiếm sản phẩm" as UC_Browse
+    usecase "Đăng ký & Đăng nhập" as UC_Auth
+    usecase "Quản lý Giỏ hàng" as UC_Cart
+    usecase "Thanh toán & Đặt hàng" as UC_Checkout
+    usecase "Xem lịch sử đơn hàng" as UC_OrderHistory
+    usecase "Yêu cầu & Xử lý Đổi/Trả" as UC_Return
+    usecase "Đánh giá sản phẩm" as UC_Review
+    usecase "Chat hỗ trợ" as UC_Chat
+    usecase "Hệ thống Thông báo" as UC_Notification
+    usecase "Quản lý Sản phẩm & Kho" as UC_AdminProd
+    usecase "Quản lý Đơn hàng (Admin)" as UC_AdminOrder
+    usecase "Quản lý Danh mục & Thương hiệu" as UC_AdminCat
+    usecase "Quản lý người dùng" as UC_AdminUser
+    usecase "Quản lý Coupon" as UC_AdminCoupon
+    usecase "Xem Thống kê & Dashboard" as UC_Dashboard
+}
+
+Guest --> UC_Browse
+Guest --> UC_Auth
+
+Customer --|> Guest
+Customer --> UC_Cart
+Customer --> UC_Checkout
+Customer --> UC_OrderHistory
+Customer --> UC_Return
+Customer --> UC_Review
+Customer --> UC_Chat
+Customer --> UC_Notification
+
+Admin --> UC_AdminProd
+Admin --> UC_AdminOrder
+Admin --> UC_AdminCat
+Admin --> UC_AdminUser
+Admin --> UC_AdminCoupon
+Admin --> UC_Dashboard
+Admin --> UC_Chat
+Admin --> UC_Return
+Admin --> UC_Notification
+
+@enduml

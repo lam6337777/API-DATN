@@ -1,0 +1,40 @@
+@startuml Activity Diagram - Order Lifecycle
+|Khách hàng|
+start
+:Đặt hàng (Checkout);
+:Đơn hàng được tạo [PENDING];
+
+|Hệ thống (Web/Admin)|
+if (Chuyển trạng thái?) then (Hủy đơn)
+  if (Đang ở PENDING hoặc CONFIRMED?) then (Có)
+    :Cập nhật [CANCELLED];
+    :Hoàn tồn kho;
+    if (Đã thanh toán?) then (Có)
+      :Cập nhật PaymentStatus = REFUNDED;
+    endif
+    stop
+  else (Không)
+    :Báo lỗi không thể hủy;
+    stop
+  endif
+else (Xác nhận)
+  :Admin Xác nhận đơn hàng;
+  :Cập nhật [CONFIRMED];
+
+  :Giao cho shipper;
+  :Cập nhật [SHIPPING];
+
+  :Giao hàng thành công;
+  :Cập nhật [DELIVERED];
+  
+  if (Thanh toán COD?) then (Có)
+    :Cập nhật PaymentStatus = PAID;
+    :Cập nhật Payment = COMPLETED;
+  endif
+
+  |Khách hàng|
+  :Đánh giá Sản phẩm (Review);
+  stop
+endif
+
+@enduml

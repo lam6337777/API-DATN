@@ -1,0 +1,38 @@
+@startuml Activity Diagram - Admin Product Import
+|Quản trị viên (Admin)|
+start
+:Tải lên file mẫu (.csv/.xlsx);
+:Tải file lên hệ thống (Upload);
+
+|Hệ thống (DataImportService)|
+:Nhận MultipartFile và đọc InputStream;
+:Duyệt qua từng dòng dữ liệu (Row/Line iteration);
+
+while (Còn dòng dữ liệu?) is (Có)
+  :Kiểm tra số lượng cột dữ liệu;
+  if (Đủ cột tối thiểu (>=10)?) then (Có)
+    :Trích xuất & chuẩn hóa dữ liệu 
+    (Giá, Biến thể, URLs ảnh);
+    
+    :Tìm Danh mục/Thương hiệu theo tên;
+    if (Tồn tại?) then (Không)
+      :Tạo Danh mục/Thương hiệu mới (orElseGet);
+    endif
+    
+    :Gọi ProductService.createProduct();
+    :Ghi nhận thành công (successCount++);
+  else (Không đủ cột / Lỗi parse)
+    :Bỏ qua dòng & Ghi log cảnh báo;
+    :Ghi nhận thất bại (failureCount++);
+  endif
+endwhile (Hết dòng)
+
+|Hệ thống (Web/API)|
+:Tổng hợp báo cáo kết quả;
+:Trả về số lượng Thành công/Thất bại;
+
+|Quản trị viên (Admin)|
+:Xem kết quả nạp dữ liệu;
+stop
+
+@enduml

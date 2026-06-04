@@ -1,0 +1,47 @@
+@startuml Activity Diagram - Return Request Processing
+|Khách hàng|
+start
+:Yêu cầu Hoàn hàng;
+:Gửi yêu cầu (ReturnRequestRequest);
+
+|Hệ thống (Web/API)|
+:Kiểm tra điều kiện:
+- Đơn hàng phải DELIVERED
+- Quyền sở hữu (userId)
+- Các OrderItem hợp lệ;
+
+if (Validate thời hạn?) then (Hợp lệ)
+  note right: <= 7 ngày
+  :Lưu yêu cầu [Trạng thái: PENDING];
+  :Cập nhật trạng thái OrderItem: [RETURN_REQUESTED];
+  :Gửi thông báo cho Admin;
+else (Không hợp lệ)
+  :Trả về lỗi 400;
+  stop
+endif
+
+|Quản trị viên (Admin)|
+:Xem danh sách yêu cầu;
+:Kiểm tra tính hợp lệ;
+
+if (Quyết định?) then (Duyệt/Approve)
+  :Ghi nhận AdminNote;
+  |Hệ thống (Web/API)|
+  :Cập nhật trạng thái Request [APPROVED];
+  :Tăng tồn kho sản phẩm khách trả;
+  :Cập nhật trạng thái OrderItem [RETURNED];
+  :Cập nhật trạng thái đơn hàng [RETURNED];
+else (Từ chối/Reject)
+  |Quản trị viên (Admin)|
+  :Nhập lý do từ chối;
+  |Hệ thống (Web/API)|
+  :Cập nhật trạng thái Request [REJECTED];
+  :Khôi phục OrderItem về [ACTIVE];
+  :Khôi phục trạng thái đơn hàng về [DELIVERED];
+endif
+
+|Hệ thống (Web/API)|
+:Lưu thay đổi vào DB;
+:Gửi thông báo cho khách hàng;
+stop
+@enduml

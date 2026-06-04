@@ -1,0 +1,59 @@
+@startuml Sequence Diagram - Add To Cart Process
+actor Customer
+participant "CartController" as Controller
+participant "CartService" as Service
+participant "UserRepo" as UserRepo
+participant "VariantRepo" as VariantRepo
+participant "CartItemRepo" as CartRepo
+database "Database" as DB
+
+Customer -> Controller : POST /api/cart (CartRequest)
+activate Controller
+
+Controller -> Service : addToCart(userId, variantId, quantity)
+activate Service
+
+Service -> UserRepo : findById(userId)
+activate UserRepo
+UserRepo -> DB : Query user
+DB --> UserRepo : UserEntity
+UserRepo --> Service : UserEntity
+deactivate UserRepo
+
+Service -> VariantRepo : findById(variantId)
+activate VariantRepo
+VariantRepo -> DB : Query variant
+DB --> VariantRepo : VariantEntity
+VariantRepo --> Service : VariantEntity
+deactivate VariantRepo
+
+Service -> Service : Check Stock Existence
+
+Service -> CartRepo : findByUserAndVariant(user, variant)
+activate CartRepo
+CartRepo -> DB : Query cart item
+DB --> CartRepo : Optional<CartItemEntity>
+CartRepo --> Service : Optional<CartItemEntity>
+deactivate CartRepo
+
+alt Nếu sản phẩm đã có trong giỏ
+    Service -> Service : Update quantity
+    Service -> CartRepo : save(cartItem)
+else Nếu sản phẩm chưa có trong giỏ
+    Service -> Service : Create new CartItemEntity
+    Service -> CartRepo : save(newCartItem)
+end
+
+activate CartRepo
+CartRepo -> DB : Insert/Update CartItem
+DB --> CartRepo : Success
+CartRepo --> Service : Saved CartItem
+deactivate CartRepo
+
+Service --> Controller : CartItemResponse
+deactivate Service
+
+Controller --> Customer : 200 OK (ApiResponse)
+deactivate Controller
+
+@enduml

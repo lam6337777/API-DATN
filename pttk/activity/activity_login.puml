@@ -1,0 +1,31 @@
+@startuml Activity Diagram - Login Process
+|Người dùng (Frontend)|
+start
+:Nhập Email và Mật khẩu;
+:Gửi yêu cầu đăng nhập (email, pass, isAdmin);
+
+|Hệ thống (Backend)|
+:Tìm kiếm User & Xác thực mật khẩu;
+if (Xác thực thành công?) then (Không)
+  :Trả về lỗi 400 (Sai thông tin);
+  stop
+else (Có)
+  if (Tài khoản isActive?) then (Không)
+    :Trả về lỗi 400 (Tài khoản đã bị vô hiệu hóa);
+    stop
+  else (Có)
+    if (Yêu cầu đăng nhập trang Admin (isAdmin=true)?) then (Có)
+      if (User Role == ADMIN?) then (Có)
+        :Xác nhận quyền Admin;
+      else (Không)
+        :Trả về lỗi 400 (Bạn không có quyền quản trị);
+        stop
+      endif
+    endif
+    
+    :Tạo JWT Token (JwtService);
+    :Trả về UserResponse (Role & Token);
+    stop
+  endif
+endif
+@enduml

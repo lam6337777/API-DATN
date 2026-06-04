@@ -1,0 +1,29 @@
+@startuml Activity Diagram - Admin User Management
+|Quản trị viên (Admin)|
+start
+:Tìm kiếm/Lọc người dùng (search/role/status);
+:Xem Danh sách người dùng;
+:Xem Chi tiết tài khoản;
+
+if (Đảo ngược trạng thái (Toggle Status)?) then (Có)
+  :Nhấn nút Khóa/Mở khóa;
+  :Gửi yêu cầu PUT /api/admin/users/{id}/status;
+  
+  |Hệ thống (Web/API)|
+  :Tìm kiếm User theo ID (findById);
+  if (Người dùng tồn tại?) then (Có)
+    :Đảo ngược trạng thái: \nuser.setIsActive(!user.getIsActive());
+    :Lưu vào DB (userRepository.save);
+    :Gửi phản hồi Thành công\n(Đã kích hoạt / vô hiệu hóa);
+  else (Không)
+    :Trả về lỗi 404 (ResourceNotFoundException);
+  endif
+
+else (Không)
+  :Kết thúc xem thông tin;
+endif
+
+|Quản trị viên (Admin)|
+:Kiểm tra danh sách đã cập nhật;
+stop
+@enduml

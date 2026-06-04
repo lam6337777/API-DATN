@@ -1,0 +1,26 @@
+@startuml Shopping Flow & Ordering
+left to right direction
+actor "Khách hàng" as Customer
+
+package "Hệ thống Mua sắm & Đặt hàng" {
+    usecase "Thêm sản phẩm vào giỏ" as UC_AddToCart
+    usecase "Cập nhật/Xóa giỏ hàng" as UC_UpdateCart
+    usecase "Áp dụng Coupon" as UC_ApplyCoupon
+    usecase "Đặt hàng (Checkout)" as UC_Order
+
+    usecase "Hủy đơn hàng" as UC_CancelOrder
+    usecase "Theo dõi trạng thái đơn" as UC_Track
+    usecase "Yêu cầu Đổi/Trả/Bảo hành" as UC_Return
+    usecase "Nhận thông báo" as UC_Notification
+}
+
+Customer --> UC_AddToCart
+Customer --> UC_UpdateCart
+Customer --> UC_ApplyCoupon
+Customer --> UC_Order
+
+Customer --> UC_CancelOrder
+Customer --> UC_Track
+Customer --> UC_Return
+Customer --> UC_Notification
+@enduml

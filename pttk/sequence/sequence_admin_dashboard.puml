@@ -1,0 +1,52 @@
+@startuml Sequence Diagram - Admin Dashboard Stats
+actor Admin
+participant "AdminDashboardController" as Controller
+participant "DashboardService" as Service
+participant "OrderRepo" as OrderRepo
+participant "UserRepo" as UserRepo
+participant "ProductRepo" as ProdRepo
+database "Database" as DB
+
+Admin -> Controller : GET /api/admin/dashboard
+activate Controller
+
+Controller -> Service : getDashboardStats()
+activate Service
+
+Service -> OrderRepo : sumTotalAmount()
+activate OrderRepo
+OrderRepo -> DB : SELECT SUM(total_amount) FROM orders
+DB --> OrderRepo : revenue
+OrderRepo --> Service : revenue
+deactivate OrderRepo
+
+Service -> OrderRepo : count()
+activate OrderRepo
+OrderRepo -> DB : SELECT COUNT(*) FROM orders
+DB --> OrderRepo : orderCount
+OrderRepo --> Service : orderCount
+deactivate OrderRepo
+
+Service -> UserRepo : count()
+activate UserRepo
+UserRepo -> DB : SELECT COUNT(*) FROM users
+DB --> UserRepo : userCount
+UserRepo --> Service : userCount
+deactivate UserRepo
+
+Service -> ProdRepo : count()
+activate ProdRepo
+ProdRepo -> DB : SELECT COUNT(*) FROM products
+DB --> ProdRepo : productCount
+ProdRepo --> Service : productCount
+deactivate ProdRepo
+
+Service -> Service : Build DashboardResponse(revenue, orderCount, \n  userCount, productCount, \n  pendingOrders, latestOrders)
+
+Service --> Controller : DashboardResponse
+deactivate Service
+
+Controller --> Admin : 200 OK (ApiResponse)
+deactivate Controller
+
+@enduml

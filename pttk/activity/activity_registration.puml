@@ -1,0 +1,34 @@
+@startuml Activity Diagram - Registration Workflow
+|Người dùng|
+start
+:Nhập thông tin đăng ký;
+note right
+  Email, Mật khẩu, Họ tên, Số điện thoại
+end note
+:Gửi yêu cầu Đăng ký (RegisterRequest);
+
+|Hệ thống (AuthService)|
+if (Dữ liệu hợp lệ (Validation)?) then (Không)
+  :Trả về lỗi 400 (Bad Request);
+  stop
+else (Có)
+  :Kiểm tra Email (userRepository.existsByEmail);
+  if (Email đã tồn tại?) then (Có)
+    :Trả về lỗi 400 (Email đã được sử dụng);
+    stop
+  else (Không)
+    :Mã hóa mật khẩu (PasswordEncoder);
+    :Khởi tạo UserEntity (Role mặc định);
+    :Lưu User vào Cơ sở dữ liệu;
+    
+    |Hệ thống (JwtService)|
+    :Tạo JWT Token (jwtService.generateToken);
+    
+    |Hệ thống (AuthService)|
+    :Map sang UserResponse (đính kèm Token);
+    :Trả về thông báo Thành công;
+    stop
+  endif
+endif
+
+@enduml

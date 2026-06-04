@@ -1,0 +1,27 @@
+@startuml Auth & User Management
+left to right direction
+actor "Người dùng" as User
+actor "Khách hàng" as Customer
+actor "Quản trị viên" as Admin
+
+package "Hệ thống Quản lý Người dùng" {
+    usecase "Đăng ký tài khoản" as UC_Reg
+    usecase "Đăng nhập" as UC_Login
+    usecase "Đăng nhập Admin" as UC_AdminLogin
+    usecase "Đăng xuất" as UC_Logout
+    usecase "Quản lý Thông tin cá nhân" as UC_Profile
+    usecase "Quản lý Địa chỉ giao hàng" as UC_Address
+}
+
+User --> UC_Reg
+User --> UC_Login
+Admin --> UC_AdminLogin
+User --> UC_Logout
+Customer --> UC_Profile
+Customer --> UC_Address
+
+note right of UC_AdminLogin
+  Yêu cầu xác thực tài khoản 
+  phải có Role = ADMIN
+end note
+@enduml

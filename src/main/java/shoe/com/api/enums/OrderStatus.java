@@ -1,0 +1,16 @@
+package shoe.com.api.enums;
+
+public enum OrderStatus {
+    PENDING,
+    CONFIRMED,
+    SHIPPING,
+    DELIVERED,
+    CANCELLED,
+    RETURN_REQUESTED,
+    RETURNED,
+    EXCHANGE_REQUESTED,
+    EXCHANGED,
+    WARRANTY_REQUESTED,
+    WARRANTY_REPAIRING,
+    WARRANTY_COMPLETED
+}

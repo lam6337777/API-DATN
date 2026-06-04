@@ -1,0 +1,42 @@
+@startuml Sequence Diagram - Admin Update Order Status
+actor Admin
+participant "OrderController" as Controller
+participant "OrderService" as Service
+participant "OrderRepo" as Repo
+database "Database" as DB
+
+Admin -> Controller : PUT /api/admin/orders/{id}/status?status=...
+activate Controller
+
+Controller -> Service : updateOrderStatus(id, status)
+activate Service
+
+Service -> Repo : findById(id)
+activate Repo
+Repo -> DB : Query order
+DB --> Repo : OrderEntity
+Repo --> Service : OrderEntity
+deactivate Repo
+
+alt Nếu đơn hàng không tồn tại
+    Service --> Controller : throw ResourceNotFoundException("Đơn hàng không tồn tại")
+    Controller --> Admin : 404 Not Found (ApiResponse)
+end
+
+Service -> Service : Check Status transition rules
+Service -> Service : setStatus(status)
+
+Service -> Repo : save(OrderEntity)
+activate Repo
+Repo -> DB : Update Status
+DB --> Repo : Success
+Repo --> Service : SavedOrder
+deactivate Repo
+
+Service --> Controller : OrderResponse
+deactivate Service
+
+Controller --> Admin : 200 OK (ApiResponse)
+deactivate Controller
+
+@enduml

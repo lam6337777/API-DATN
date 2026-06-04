@@ -1,0 +1,42 @@
+@startuml Sequence Diagram - Chat Support Flow
+actor User as "Người gửi (Khách/Admin)"
+participant "ChatController" as Controller
+participant "ChatService" as Service
+participant "ChatRepo" as Repo
+actor Receiver as "Người nhận (Khách/Admin)"
+database "Database" as DB
+
+== Gửi Tin nhắn ==
+User -> Controller : POST /api/chat/send (receiverId, content)
+activate Controller
+Controller -> Service : sendMessage(senderId, receiverId, content)
+activate Service
+Service -> Repo : findByUserId(senderId, receiverId)
+Service -> Repo : save(ChatMessageEntity)
+activate Repo
+Repo -> DB : Insert message
+DB --> Repo : Success
+Repo --> Service : SavedMessage
+deactivate Repo
+Service --> Controller : ChatMessageEntity
+deactivate Service
+Controller --> User : 200 OK (ApiResponse)
+deactivate Controller
+
+== Nhận Tin nhắn (Polling) ==
+Receiver -> Controller : GET /api/chat/messages/{otherId}
+activate Controller
+Controller -> Service : getMessagesBetween(userId, otherId)
+activate Service
+Service -> Repo : findAllBySenderAndReceiver(...)
+activate Repo
+Repo -> DB : Select messages
+DB --> Repo : List<ChatMessageEntity>
+Repo --> Service : List<ChatMessageEntity>
+deactivate Repo
+Service --> Controller : List<ChatMessageEntity>
+deactivate Service
+Controller --> Receiver : 200 OK (ApiResponse)
+deactivate Controller
+
+@enduml

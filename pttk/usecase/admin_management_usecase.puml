@@ -1,0 +1,28 @@
+@startuml Admin Portal Operations
+left to right direction
+actor "Admin" as Admin
+
+package "Hệ thống Quản trị (Admin Portal)" {
+    usecase "Thêm/Sửa/Xóa Sản phẩm" as UC_CRUD_Prod
+    usecase "Cập nhật tồn kho" as UC_Stock
+    usecase "Import sản phẩm (Excel/CSV)" as UC_Import
+    usecase "Cập nhật trạng thái đơn hàng" as UC_UpdateStatus
+    usecase "Duyệt yêu cầu Đổi/Trả/Bảo hành" as UC_ApproveReturn
+    usecase "Quản lý mã giảm giá" as UC_Coupon
+    usecase "Khóa/Mở khóa tài khoản" as UC_UserStatus
+    usecase "Xem Thống kê & Dashboard" as UC_Dashboard
+    usecase "Chat hỗ trợ khách hàng" as UC_Chat
+    usecase "Gửi thông báo (Notification)" as UC_SendNotif
+}
+
+Admin --> UC_CRUD_Prod
+Admin --> UC_Stock
+Admin --> UC_Import
+Admin --> UC_UpdateStatus
+Admin --> UC_ApproveReturn
+Admin --> UC_Coupon
+Admin --> UC_UserStatus
+Admin --> UC_Dashboard
+Admin --> UC_Chat
+Admin --> UC_SendNotif
+@enduml
