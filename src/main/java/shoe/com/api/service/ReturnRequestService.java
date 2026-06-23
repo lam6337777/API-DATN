@@ -10,6 +10,7 @@ import shoe.com.api.dto.response.ReturnRequestResponse;
 import shoe.com.api.entity.*;
 import shoe.com.api.enums.OrderItemStatus;
 import shoe.com.api.enums.OrderStatus;
+import shoe.com.api.enums.PaymentStatus;
 import shoe.com.api.enums.ReturnRequestStatus;
 import shoe.com.api.enums.ReturnRequestType;
 import shoe.com.api.exception.BadRequestException;
@@ -178,6 +179,11 @@ public class ReturnRequestService {
             case EXCHANGE -> OrderStatus.EXCHANGED;
             case WARRANTY -> OrderStatus.WARRANTY_COMPLETED;
         });
+
+        if (order.getStatus() == OrderStatus.RETURNED && order.getPaymentStatus() == PaymentStatus.PAID) {
+            order.setPaymentStatus(PaymentStatus.REFUNDED);
+        }
+
         orderRepository.save(order);
 
         orderItemRepository.saveAll(request.getReturnItems());
