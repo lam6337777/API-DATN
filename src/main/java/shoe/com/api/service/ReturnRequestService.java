@@ -109,11 +109,11 @@ public class ReturnRequestService {
         orderItemRepository.saveAll(items);
 
         // Cập nhật trạng thái đơn hàng
-        order.setStatus(switch (request.getType()) {
+        order.changeStatus(switch (request.getType()) {
             case RETURN -> OrderStatus.RETURN_REQUESTED;
             case EXCHANGE -> OrderStatus.EXCHANGE_REQUESTED;
             case WARRANTY -> OrderStatus.WARRANTY_REQUESTED;
-        });
+        }, "Khách hàng gửi yêu cầu: " + request.getReason());
         orderRepository.save(order);
 
         returnRequest = returnRequestRepository.save(returnRequest);
@@ -124,6 +124,13 @@ public class ReturnRequestService {
 
     public List<ReturnRequestResponse> getAllRequests() {
         return returnRequestRepository.findAllByOrderByCreatedAtDesc().stream()
+                .map(this::toResponse)
+                .collect(Collectors.toList());
+    }
+
+    /** Yêu cầu đổi/trả của chính khách hàng đang đăng nhập */
+    public List<ReturnRequestResponse> getMyRequests(Long userId) {
+        return returnRequestRepository.findByUserIdOrderByCreatedAtDesc(userId).stream()
                 .map(this::toResponse)
                 .collect(Collectors.toList());
     }
@@ -167,18 +174,19 @@ public class ReturnRequestService {
         // Nếu là Đổi hàng, trừ kho sản phẩm mới
         if (request.getType() == ReturnRequestType.EXCHANGE && request.getExchangeVariant() != null) {
             ProductVariantEntity exchangeVariant = request.getExchangeVariant();
-            // Ở đây có thể thêm kiểm tra tồn kho nếu cần
-            exchangeVariant.setStockQuantity(exchangeVariant.getStockQuantity() - 1); // Giả định đổi 1
-            productVariantRepository.save(exchangeVariant);
+            // Trừ kho nguyên tử, báo lỗi nếu hàng đổi đã hết
+            if (productVariantRepository.decrementStock(exchangeVariant.getId(), 1) == 0) { // Giả định đổi 1
+                throw new BadRequestException("Sản phẩm dùng để đổi đã hết hàng");
+            }
         }
 
         // Cập nhật trạng thái đơn hàng
         OrderEntity order = request.getOrder();
-        order.setStatus(switch (request.getType()) {
+        order.changeStatus(switch (request.getType()) {
             case RETURN -> OrderStatus.RETURNED;
             case EXCHANGE -> OrderStatus.EXCHANGED;
             case WARRANTY -> OrderStatus.WARRANTY_COMPLETED;
-        });
+        }, adminNote != null && !adminNote.isBlank() ? "Shop đã duyệt yêu cầu: " + adminNote : "Shop đã duyệt yêu cầu");
 
         if (order.getStatus() == OrderStatus.RETURNED && order.getPaymentStatus() == PaymentStatus.PAID) {
             order.setPaymentStatus(PaymentStatus.REFUNDED);
@@ -211,7 +219,8 @@ public class ReturnRequestService {
 
         // Khôi phục trạng thái đơn hàng về DELIVERED
         OrderEntity order = request.getOrder();
-        order.setStatus(OrderStatus.DELIVERED);
+        order.changeStatus(OrderStatus.DELIVERED,
+                adminNote != null && !adminNote.isBlank() ? "Shop từ chối yêu cầu: " + adminNote : "Shop từ chối yêu cầu");
         orderRepository.save(order);
 
         orderItemRepository.saveAll(request.getReturnItems());

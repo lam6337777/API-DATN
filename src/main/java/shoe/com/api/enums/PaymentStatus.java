@@ -6,5 +6,7 @@ public enum PaymentStatus {
     PAID,
     COMPLETED,
     FAILED,
-    REFUNDED
+    REFUNDED,
+    // Hoàn tiền một phần (trả một số sản phẩm trong đơn) - có trong dữ liệu cũ, cần giữ để đọc được đơn
+    PARTIALLY_REFUNDED
 }

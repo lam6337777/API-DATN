@@ -45,8 +45,12 @@ public class OrderController {
     }
 
     @GetMapping("/{code}")
-    public ResponseEntity<ApiResponse<OrderResponse>> getOrderByCode(@PathVariable String code) {
-        OrderResponse order = orderService.getOrderByCode(code);
+    public ResponseEntity<ApiResponse<OrderResponse>> getOrderByCode(
+            @PathVariable String code,
+            @AuthenticationPrincipal UserEntity user) {
+        if (user == null)
+            return ResponseEntity.status(401).body(ApiResponse.error("Chưa đăng nhập"));
+        OrderResponse order = orderService.getOrderForUser(user, code);
         return ResponseEntity.ok(ApiResponse.success(order));
     }
 

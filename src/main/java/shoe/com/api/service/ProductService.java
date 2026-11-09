@@ -5,6 +5,7 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
+import org.springframework.data.jpa.domain.JpaSort;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import shoe.com.api.dto.request.ProductRequest;
@@ -52,27 +53,57 @@ public class ProductService {
      */
     public Page<ProductResponse> getProducts(String categoryName, String brandName,
             BigDecimal minPrice, BigDecimal maxPrice, String shoeSize, String keyword,
-            String sortBy, int page, int size) {
+            boolean onSale, String sortBy, int page, int size) {
+        // Sắp xếp theo giá thực tế (giá sale nếu có), không phải giá gốc
+        String effectivePrice = "COALESCE(p.salePrice, p.originalPrice)";
         Sort sort = switch (sortBy != null ? sortBy : "newest") {
-            case "price_asc" -> Sort.by("originalPrice").ascending();
-            case "price_desc" -> Sort.by("originalPrice").descending();
+            case "price_asc" -> JpaSort.unsafe(Sort.Direction.ASC, effectivePrice);
+            case "price_desc" -> JpaSort.unsafe(Sort.Direction.DESC, effectivePrice);
             case "best_selling" -> Sort.by("totalSold").descending();
             case "rating" -> Sort.by("avgRating").descending();
             default -> Sort.by("createdAt").descending();
         };
-        if (sortBy == null || sortBy.equals("newest")) {
-            sort = Sort.by("createdAt").descending();
-        }
 
-        Pageable pageable = PageRequest.of(page, size, sort);
+        Pageable pageable = PageRequest.of(Math.max(page, 0), Math.min(Math.max(size, 1), 60), sort);
         String searchKeyword = null;
         if (keyword != null && !keyword.trim().isEmpty()) {
             searchKeyword = "%" + keyword.toLowerCase().trim() + "%";
         }
 
         Page<ProductEntity> products = productRepository.filterProducts(categoryName, brandName, minPrice, maxPrice,
-                shoeSize, searchKeyword, pageable);
+                shoeSize, searchKeyword, onSale, pageable);
         return products.map(this::toProductResponse);
+    }
+
+    /**
+     * Sản phẩm liên quan (cùng danh mục)
+     */
+    public List<ProductResponse> getRelatedProducts(String productId, int limit) {
+        ProductEntity product = productRepository.findById(productId)
+                .orElseThrow(() -> new ResourceNotFoundException("Sản phẩm", "id", productId));
+        if (product.getCategory() == null) {
+            return List.of();
+        }
+        return productRepository.findRelated(productId, product.getCategory().getId(),
+                PageRequest.of(0, Math.min(Math.max(limit, 1), 20)))
+                .stream().map(this::toProductResponse).collect(Collectors.toList());
+    }
+
+    /**
+     * Lấy nhiều sản phẩm theo danh sách ID, giữ nguyên thứ tự truyền vào (dùng cho "Đã xem gần đây")
+     */
+    public List<ProductResponse> getProductsByIds(List<String> ids) {
+        if (ids == null || ids.isEmpty()) {
+            return List.of();
+        }
+        List<String> limited = ids.stream().distinct().limit(30).collect(Collectors.toList());
+        java.util.Map<String, ProductEntity> byId = productRepository.findByIdInAndIsActiveTrue(limited).stream()
+                .collect(Collectors.toMap(ProductEntity::getId, p -> p));
+        return limited.stream()
+                .map(byId::get)
+                .filter(java.util.Objects::nonNull)
+                .map(this::toProductResponse)
+                .collect(Collectors.toList());
     }
 
     /**
@@ -116,6 +147,7 @@ public class ProductService {
                 .description(request.getDescription())
                 .originalPrice(request.getOriginalPrice())
                 .salePrice(request.getSalePrice())
+                .model3dUrl(blankToNull(request.getModel3dUrl()))
                 .isFeatured(request.getIsFeatured() != null && request.getIsFeatured())
                 .build();
 
@@ -180,6 +212,7 @@ public class ProductService {
         product.setDescription(request.getDescription());
         product.setOriginalPrice(request.getOriginalPrice());
         product.setSalePrice(request.getSalePrice());
+        product.setModel3dUrl(blankToNull(request.getModel3dUrl()));
         product.setIsFeatured(request.getIsFeatured() != null && request.getIsFeatured());
 
         if (request.getCategoryId() != null) {
@@ -289,8 +322,12 @@ public class ProductService {
         productRepository.save(product);
     }
 
+    private static String blankToNull(String value) {
+        return value == null || value.isBlank() ? null : value.trim();
+    }
+
     // Chuyển Entity sang Response DTO
-    private ProductResponse toProductResponse(ProductEntity product) {
+    public ProductResponse toProductResponse(ProductEntity product) {
         List<ProductResponse.ImageDto> images = product.getImages().stream()
                 .map(img -> ProductResponse.ImageDto.builder()
                         .id(img.getId())
@@ -304,6 +341,7 @@ public class ProductService {
                 .map(v -> ProductResponse.VariantDto.builder()
                         .id(v.getId())
                         .size(v.getSize())
+                        .color(v.getColor())
                         .stockQuantity(v.getStockQuantity())
                         .sku(v.getSku())
                         .canDelete(!orderItemRepository.existsByVariantId(v.getId()))
@@ -321,6 +359,7 @@ public class ProductService {
                 .brandId(product.getBrand() != null ? product.getBrand().getId() : null)
                 .originalPrice(product.getOriginalPrice())
                 .salePrice(product.getSalePrice())
+                .model3dUrl(product.getModel3dUrl())
                 .isActive(product.getIsActive())
                 .isFeatured(product.getIsFeatured())
                 .totalSold(product.getTotalSold())

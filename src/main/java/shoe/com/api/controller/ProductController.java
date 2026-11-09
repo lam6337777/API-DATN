@@ -34,15 +34,30 @@ public class ProductController {
             @RequestParam(required = false) BigDecimal maxPrice,
             @RequestParam(required = false) String productSize,
             @RequestParam(required = false) String q,
+            @RequestParam(defaultValue = "false") boolean onSale,
             @RequestParam(defaultValue = "newest") String sortBy,
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "12") int size) {
 
         Page<ProductResponse> products = productService.getProducts(categoryName, brandName, minPrice, maxPrice,
-                productSize, q,
+                productSize, q, onSale,
                 sortBy,
                 page, size);
         return ResponseEntity.ok(ApiResponse.success(products));
+    }
+
+    // Lấy nhiều sản phẩm theo ID (dùng cho "Đã xem gần đây"): /api/products/batch?ids=A,B,C
+    @GetMapping("/batch")
+    public ResponseEntity<ApiResponse<List<ProductResponse>>> getProductsByIds(@RequestParam List<String> ids) {
+        return ResponseEntity.ok(ApiResponse.success(productService.getProductsByIds(ids)));
+    }
+
+    // Sản phẩm liên quan
+    @GetMapping("/{id}/related")
+    public ResponseEntity<ApiResponse<List<ProductResponse>>> getRelatedProducts(
+            @PathVariable String id,
+            @RequestParam(defaultValue = "8") int limit) {
+        return ResponseEntity.ok(ApiResponse.success(productService.getRelatedProducts(id, limit)));
     }
 
     // Chi tiết sản phẩm theo ID

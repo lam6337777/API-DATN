@@ -37,6 +37,14 @@ public class ReviewService {
                 .map(this::toReviewResponse);
     }
 
+    /** Admin: tất cả đánh giá, mới nhất trước */
+    @Transactional(readOnly = true)
+    public Page<ReviewResponse> getAllReviews(int page, int size) {
+        Pageable pageable = PageRequest.of(Math.max(page, 0), Math.min(Math.max(size, 1), 100),
+                org.springframework.data.domain.Sort.by(org.springframework.data.domain.Sort.Direction.DESC, "createdAt"));
+        return reviewRepository.findAll(pageable).map(this::toReviewResponse);
+    }
+
     public Page<ReviewResponse> getUserReviews(Long userId, int page, int size) {
         Pageable pageable = PageRequest.of(page, size);
         return reviewRepository.findByUserIdOrderByCreatedAtDesc(userId, pageable)

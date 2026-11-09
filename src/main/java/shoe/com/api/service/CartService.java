@@ -143,6 +143,7 @@ public class CartService {
                 .id(item.getId())
                 .variantId(variant.getId())
                 .productName(product.getName())
+                .productId(product.getId())
                 .productSlug(product.getSlug())
                 .primaryImageUrl(primaryImageUrl)
                 .size(variant.getSize())

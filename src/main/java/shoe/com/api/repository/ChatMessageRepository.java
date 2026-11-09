@@ -20,6 +20,10 @@ public interface ChatMessageRepository extends JpaRepository<ChatMessageEntity, 
 
     List<ChatMessageEntity> findByReceiverOrderByCreatedAtAsc(UserEntity receiver);
 
+    @org.springframework.data.jpa.repository.Modifying(clearAutomatically = true)
+    @Query("UPDATE ChatMessageEntity m SET m.isRead = true WHERE m.sender.id = :senderId AND m.isRead = false")
+    int markReadFromSender(@Param("senderId") Long senderId);
+
     @Query("SELECT m FROM ChatMessageEntity m JOIN FETCH m.sender JOIN FETCH m.receiver WHERE m.sender.role = :role OR m.receiver.role = :role ORDER BY m.createdAt DESC")
     List<ChatMessageEntity> findAllByRole(@Param("role") Role role);
 

@@ -20,6 +20,7 @@ public class ProductResponse {
     private Long brandId;
     private BigDecimal originalPrice;
     private BigDecimal salePrice;
+    private String model3dUrl;
     private Boolean isActive;
     private Boolean isFeatured;
     private Integer totalSold;

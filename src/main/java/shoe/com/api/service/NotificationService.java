@@ -47,20 +47,29 @@ public class NotificationService {
 
     @Transactional
     public void sendChatMessage(ChatMessageEntity message) {
-        // Broadcast cho Admin nếu từ CUSTOMER
+        // Mô hình hộp thư chung: mọi tin nhắn (khách gửi hoặc admin trả lời) đều phát lên
+        // kênh chung của admin để tất cả admin đang online cùng thấy cuộc hội thoại cập nhật.
         if (message.getSender().getRole() == Role.CUSTOMER) {
             NotificationEntity notification = NotificationEntity.builder()
                     .type("CHAT")
                     .title("Tin nhắn mới")
                     .description("Bạn có tin nhắn mới từ " + message.getSender().getFullName())
-                    .link("/chat")
+                    .link("/support?userId=" + message.getSender().getId())
                     .build();
             notificationRepository.save(notification);
             messagingTemplate.convertAndSend("/topic/admin/chat", message);
+            return;
         }
 
-        Long receiverId = message.getReceiver().getId();
-        messagingTemplate.convertAndSend("/topic/chat/" + receiverId, message);
-        sseService.sendChatMessage(receiverId, message);
+        // Admin trả lời: gửi tới khách (SSE + topic riêng) và đồng bộ cho các admin khác
+        Long customerId = message.getReceiver().getId();
+        messagingTemplate.convertAndSend("/topic/chat/" + customerId, message);
+        sseService.sendChatMessage(customerId, message);
+        messagingTemplate.convertAndSend("/topic/admin/chat", message);
+    }
+
+    /** Báo cho mọi admin: cuộc hội thoại với khách này đã được đọc */
+    public void sendConversationRead(Long customerId) {
+        messagingTemplate.convertAndSend("/topic/admin/chat-read", java.util.Map.of("customerId", customerId));
     }
 }

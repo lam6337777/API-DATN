@@ -61,12 +61,28 @@ public class ChatController {
         return ResponseEntity.ok(ApiResponse.success(messages));
     }
 
+    /** Khách đánh dấu đã đọc tin nhân viên gửi cho mình */
     @PostMapping("/read")
     public ResponseEntity<ApiResponse<String>> markAsRead(@AuthenticationPrincipal UserEntity user) {
         if (user == null)
             return ResponseEntity.status(401).body(ApiResponse.error("Chưa đăng nhập"));
-        chatService.markAsRead(user.getId());
+        // Admin dùng /read/{customerId}: đánh dấu theo từng cuộc hội thoại thay vì toàn bộ hộp thư
+        if (user.getRole() == Role.CUSTOMER) {
+            chatService.markAsRead(user.getId());
+        }
         return ResponseEntity.ok(ApiResponse.success("Đã đánh dấu đã đọc"));
+    }
+
+    /** Admin mở cuộc hội thoại với khách → đã đọc cho mọi admin */
+    @PostMapping("/read/{customerId}")
+    public ResponseEntity<ApiResponse<Integer>> markConversationRead(
+            @AuthenticationPrincipal UserEntity user,
+            @PathVariable Long customerId) {
+        if (user == null)
+            return ResponseEntity.status(401).body(ApiResponse.error("Chưa đăng nhập"));
+        if (user.getRole() != Role.ADMIN)
+            return ResponseEntity.status(403).body(ApiResponse.error("Không có quyền"));
+        return ResponseEntity.ok(ApiResponse.success(chatService.markConversationRead(customerId)));
     }
 
     @GetMapping(value = "/sse", produces = org.springframework.http.MediaType.TEXT_EVENT_STREAM_VALUE)

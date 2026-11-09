@@ -8,4 +8,6 @@ import java.util.List;
 @Repository
 public interface ReturnRequestRepository extends JpaRepository<ReturnRequestEntity, Long> {
     List<ReturnRequestEntity> findAllByOrderByCreatedAtDesc();
+
+    List<ReturnRequestEntity> findByUserIdOrderByCreatedAtDesc(Long userId);
 }

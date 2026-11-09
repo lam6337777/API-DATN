@@ -30,6 +30,17 @@ public class ReturnRequestController {
         return ResponseEntity.ok(ApiResponse.success("Gửi yêu cầu thành công", response));
     }
 
+    // Khách hàng: chỉ xem yêu cầu của chính mình
+    @GetMapping("/my")
+    public ResponseEntity<ApiResponse<List<ReturnRequestResponse>>> getMyRequests(
+            @AuthenticationPrincipal UserEntity user) {
+        if (user == null) {
+            return ResponseEntity.status(401).body(ApiResponse.error("Chưa đăng nhập"));
+        }
+        return ResponseEntity.ok(ApiResponse.success(returnRequestService.getMyRequests(user.getId())));
+    }
+
+    // Admin: tất cả yêu cầu
     @GetMapping
     public ResponseEntity<ApiResponse<List<ReturnRequestResponse>>> getAllRequests(
             @AuthenticationPrincipal UserEntity user) {

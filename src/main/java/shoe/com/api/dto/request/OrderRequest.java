@@ -17,6 +17,13 @@ public class OrderRequest {
     @NotBlank(message = "Địa chỉ giao hàng không được để trống")
     private String shippingAddress;
 
+    /** Tỉnh/Thành nhận hàng, dùng để tính phí ship ở backend */
+    @NotBlank(message = "Tỉnh/Thành phố không được để trống")
+    private String province;
+
+    /** Mã giảm giá (không bắt buộc) */
+    private String voucherCode;
+
     @NotNull(message = "Phương thức thanh toán không được để trống")
     private PaymentMethod paymentMethod;
 

@@ -23,6 +23,9 @@ public interface OrderRepository extends JpaRepository<OrderEntity, Long> {
 
     Page<OrderEntity> findByUserIdAndStatusOrderByCreatedAtDesc(Long userId, OrderStatus status, Pageable pageable);
 
+    // Số lần một khách đã dùng mã giảm giá (không tính đơn đã hủy)
+    long countByUserIdAndVoucherCodeIgnoreCaseAndStatusNot(Long userId, String voucherCode, OrderStatus status);
+
     // Admin: lọc đơn hàng theo trạng thái
     Page<OrderEntity> findByStatusOrderByCreatedAtDesc(OrderStatus status, Pageable pageable);
 

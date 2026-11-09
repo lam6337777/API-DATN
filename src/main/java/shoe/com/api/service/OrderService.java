@@ -13,6 +13,7 @@ import shoe.com.api.entity.*;
 import shoe.com.api.enums.OrderStatus;
 import shoe.com.api.enums.PaymentMethod;
 import shoe.com.api.enums.PaymentStatus;
+import shoe.com.api.enums.Role;
 import shoe.com.api.exception.BadRequestException;
 import shoe.com.api.exception.ResourceNotFoundException;
 import shoe.com.api.repository.*;
@@ -37,24 +38,27 @@ public class OrderService {
 
     private final AuthService authService;
     private final NotificationService notificationService;
+    private final VoucherService voucherService;
+    private final ShippingService shippingService;
 
     /**
      * Admin: Lấy danh sách đơn hàng (Page DTO) với bộ lọc
      */
     public Page<OrderResponse> getAllOrders(OrderStatus status, String search, LocalDateTime startDate, LocalDateTime endDate, int page, int size) {
         Pageable pageable = PageRequest.of(page, size);
-        
+
         // Tiền xử lý search để tránh lỗi Postgres type inference với CONCAT/LOWER
-        String searchParam = (search != null && !search.trim().isEmpty()) 
-                ? "%" + search.trim().toLowerCase() + "%" 
+        String searchParam = (search != null && !search.trim().isEmpty())
+                ? "%" + search.trim().toLowerCase() + "%"
                 : null;
-                
+
         Page<OrderEntity> orders = orderRepository.findAllWithFilters(status, searchParam, startDate, endDate, pageable);
         return orders.map(this::toOrderResponse);
     }
 
     /**
-     * Đặt hàng từ giỏ hàng
+     * Đặt hàng từ giỏ hàng.
+     * Phí ship và giảm giá luôn được tính lại ở backend, không tin số tiền từ client.
      */
     @Transactional
     public OrderResponse createOrder(Long userId, OrderRequest request, HttpServletRequest httpRequest) {
@@ -63,6 +67,10 @@ public class OrderService {
 
         if (!user.getIsActive()) {
             throw new BadRequestException("Tài khoản của bạn đã bị vô hiệu hóa. Vui lòng liên hệ quản trị viên.");
+        }
+
+        if (request.getPaymentMethod() != PaymentMethod.COD) {
+            throw new BadRequestException("Phương thức thanh toán này hiện chưa được hỗ trợ");
         }
 
         // Lấy giỏ hàng
@@ -74,31 +82,29 @@ public class OrderService {
         // Tạo mã đơn hàng
         String orderCode = "ORD-" + UUID.randomUUID().toString().substring(0, 8).toUpperCase();
 
-        // Tính subtotal
+        // Tính subtotal và kiểm tra sản phẩm
         BigDecimal subtotal = BigDecimal.ZERO;
         for (CartItemEntity item : cartItems) {
-            ProductVariantEntity variant = item.getVariant();
-            ProductEntity product = variant.getProduct();
-
-            // Kiểm tra sản phẩm đã bị xóa / không còn hoạt động
+            ProductEntity product = item.getVariant().getProduct();
             if (!product.getIsActive()) {
                 throw new BadRequestException("Sản phẩm '" + product.getName() + "' đã bị xóa hoặc không còn hoạt động.");
             }
-
-            // Kiểm tra tồn kho
-            if (variant.getStockQuantity() < item.getQuantity()) {
-                throw new BadRequestException("Sản phẩm '" + product.getName() + "' (" + variant.getSize() + "/"
-                        + variant.getColor() + ") không đủ tồn kho");
-            }
-
-            BigDecimal price = product.getSalePrice() != null ? product.getSalePrice() : product.getOriginalPrice();
-            subtotal = subtotal.add(price.multiply(BigDecimal.valueOf(item.getQuantity())));
+            subtotal = subtotal.add(effectivePrice(product).multiply(BigDecimal.valueOf(item.getQuantity())));
         }
 
-        // Phí shipping cố định
-        BigDecimal shippingFee = BigDecimal.ZERO;
+        // Phí ship theo tỉnh/thành
+        BigDecimal shippingFee = shippingService.quote(request.getProvince(), subtotal).getFee();
 
-        BigDecimal totalAmount = subtotal.add(shippingFee);
+        // Mã giảm giá
+        VoucherEntity voucher = null;
+        BigDecimal discount = BigDecimal.ZERO;
+        if (request.getVoucherCode() != null && !request.getVoucherCode().isBlank()) {
+            voucher = voucherService.getUsableVoucher(request.getVoucherCode(), userId);
+            discount = voucherService.calculateDiscount(voucher, subtotal);
+            voucherService.redeem(voucher);
+        }
+
+        BigDecimal totalAmount = subtotal.subtract(discount).add(shippingFee).max(BigDecimal.ZERO);
 
         // Tạo đơn hàng
         OrderEntity order = OrderEntity.builder()
@@ -107,20 +113,28 @@ public class OrderService {
                 .paymentMethod(request.getPaymentMethod())
                 .subtotal(subtotal)
                 .shippingFee(shippingFee)
+                .discountAmount(discount)
+                .voucherCode(voucher != null ? voucher.getCode() : null)
                 .totalAmount(totalAmount)
                 .shippingName(request.getShippingName())
                 .shippingPhone(request.getShippingPhone())
                 .shippingAddress(request.getShippingAddress())
                 .note(request.getNote())
                 .build();
-
-        order = orderRepository.save(order);
+        order.changeStatus(OrderStatus.PENDING, "Đặt hàng thành công");
 
         // Tạo order items và trừ tồn kho
         for (CartItemEntity cartItem : cartItems) {
             ProductVariantEntity variant = cartItem.getVariant();
             ProductEntity product = variant.getProduct();
-            BigDecimal price = product.getSalePrice() != null ? product.getSalePrice() : product.getOriginalPrice();
+            BigDecimal price = effectivePrice(product);
+
+            // Trừ kho nguyên tử: nếu người khác vừa mua hết thì câu UPDATE trả về 0
+            int updated = productVariantRepository.decrementStock(variant.getId(), cartItem.getQuantity());
+            if (updated == 0) {
+                throw new BadRequestException("Sản phẩm '" + product.getName() + "' (size " + variant.getSize()
+                        + ") không đủ tồn kho");
+            }
 
             OrderItemEntity orderItem = OrderItemEntity.builder()
                     .order(order)
@@ -134,11 +148,6 @@ public class OrderService {
                     .build();
             order.getOrderItems().add(orderItem);
 
-            // Trừ tồn kho
-            variant.setStockQuantity(variant.getStockQuantity() - cartItem.getQuantity());
-            productVariantRepository.save(variant);
-
-            // Cộng totalSold
             product.setTotalSold(product.getTotalSold() + cartItem.getQuantity());
         }
 
@@ -148,23 +157,21 @@ public class OrderService {
         cartItemRepository.deleteByUserId(userId);
 
         // Tạo payment record cho COD
-        if (request.getPaymentMethod() == PaymentMethod.COD) {
-            PaymentEntity payment = PaymentEntity.builder()
-                    .order(order)
-                    .method(PaymentMethod.COD)
-                    .status(PaymentStatus.PENDING)
-                    .amount(totalAmount)
-                    .build();
-            paymentRepository.save(payment);
-        }
+        PaymentEntity payment = PaymentEntity.builder()
+                .order(order)
+                .method(PaymentMethod.COD)
+                .status(PaymentStatus.PENDING)
+                .amount(totalAmount)
+                .build();
+        paymentRepository.save(payment);
 
-        // Build response
         OrderResponse response = toOrderResponse(order);
-
-
-
         notificationService.sendOrderNotification(response);
         return response;
+    }
+
+    private static BigDecimal effectivePrice(ProductEntity product) {
+        return product.getSalePrice() != null ? product.getSalePrice() : product.getOriginalPrice();
     }
 
     /**
@@ -184,11 +191,25 @@ public class OrderService {
     }
 
     /**
-     * Chi tiết đơn hàng
+     * Chi tiết đơn hàng cho Admin (không kiểm tra chủ sở hữu)
      */
     public OrderResponse getOrderByCode(String orderCode) {
         OrderEntity order = orderRepository.findByOrderCode(orderCode)
                 .orElseThrow(() -> new ResourceNotFoundException("Đơn hàng", "mã", orderCode));
+        return toOrderResponse(order);
+    }
+
+    /**
+     * Chi tiết đơn hàng cho khách: chỉ chủ đơn (hoặc Admin) mới xem được
+     */
+    public OrderResponse getOrderForUser(UserEntity user, String orderCode) {
+        OrderEntity order = orderRepository.findByOrderCode(orderCode)
+                .orElseThrow(() -> new ResourceNotFoundException("Đơn hàng", "mã", orderCode));
+        boolean isOwner = order.getUser().getId().equals(user.getId());
+        if (!isOwner && user.getRole() != Role.ADMIN) {
+            // Trả về "không tìm thấy" để không lộ việc mã đơn có tồn tại
+            throw new ResourceNotFoundException("Đơn hàng", "mã", orderCode);
+        }
         return toOrderResponse(order);
     }
 
@@ -208,25 +229,12 @@ public class OrderService {
             throw new BadRequestException("Chỉ có thể hủy đơn hàng ở trạng thái 'Chờ xác nhận'");
         }
 
-        order.setStatus(OrderStatus.CANCELLED);
-
-        // Hoàn lại tồn kho
-        for (OrderItemEntity item : order.getOrderItems()) {
-            ProductVariantEntity variant = item.getVariant();
-            variant.setStockQuantity(variant.getStockQuantity() + item.getQuantity());
-            productVariantRepository.save(variant);
-        }
-
-        // Nếu đã thanh toán, đánh dấu refund
-        if (order.getPaymentStatus() == PaymentStatus.PAID) {
-            order.setPaymentStatus(PaymentStatus.REFUNDED);
-        }
+        order.changeStatus(OrderStatus.CANCELLED, "Khách hàng hủy đơn");
+        restoreStockAndVoucher(order);
 
         orderRepository.save(order);
         return toOrderResponse(order);
     }
-
-
 
     /**
      * Admin: Cập nhật trạng thái đơn hàng
@@ -239,7 +247,7 @@ public class OrderService {
         // Validate trạng thái hợp lệ
         validateStatusTransition(order.getStatus(), newStatus);
 
-        order.setStatus(newStatus);
+        order.changeStatus(newStatus, statusNote(newStatus));
 
         // Nếu giao thành công + COD → cập nhật payment = PAID
         if (newStatus == OrderStatus.DELIVERED) {
@@ -258,22 +266,38 @@ public class OrderService {
             }
         }
 
-        // Nếu admin huỷ đơn hàng, hoàn lại tồn kho
+        // Nếu admin huỷ đơn hàng, hoàn lại tồn kho và lượt dùng mã
         if (newStatus == OrderStatus.CANCELLED) {
-            for (OrderItemEntity item : order.getOrderItems()) {
-                ProductVariantEntity variant = item.getVariant();
-                variant.setStockQuantity(variant.getStockQuantity() + item.getQuantity());
-                productVariantRepository.save(variant);
-            }
-
-            // Nếu đã thanh toán, đánh dấu refund
-            if (order.getPaymentStatus() == PaymentStatus.PAID) {
-                order.setPaymentStatus(PaymentStatus.REFUNDED);
-            }
+            restoreStockAndVoucher(order);
         }
 
         orderRepository.save(order);
         return toOrderResponse(order);
+    }
+
+    private void restoreStockAndVoucher(OrderEntity order) {
+        for (OrderItemEntity item : order.getOrderItems()) {
+            ProductVariantEntity variant = item.getVariant();
+            variant.setStockQuantity(variant.getStockQuantity() + item.getQuantity());
+            productVariantRepository.save(variant);
+        }
+        voucherService.release(order.getVoucherCode());
+
+        // Nếu đã thanh toán, đánh dấu refund
+        if (order.getPaymentStatus() == PaymentStatus.PAID) {
+            order.setPaymentStatus(PaymentStatus.REFUNDED);
+        }
+    }
+
+    private static String statusNote(OrderStatus status) {
+        return switch (status) {
+            case CONFIRMED -> "Shop đã xác nhận đơn hàng";
+            case SHIPPING -> "Đơn hàng đã được giao cho đơn vị vận chuyển";
+            case DELIVERED -> "Giao hàng thành công";
+            case CANCELLED -> "Shop đã hủy đơn hàng";
+            case RETURNED -> "Đã hoàn trả hàng";
+            default -> null;
+        };
     }
 
     // Validate chuyển trạng thái hợp lệ
@@ -282,9 +306,9 @@ public class OrderService {
             case PENDING -> next == OrderStatus.CONFIRMED || next == OrderStatus.CANCELLED;
             case CONFIRMED -> next == OrderStatus.SHIPPING || next == OrderStatus.CANCELLED;
             case SHIPPING -> next == OrderStatus.DELIVERED || next == OrderStatus.CANCELLED;
-            case DELIVERED -> next == OrderStatus.RETURN_REQUESTED || 
-                             next == OrderStatus.EXCHANGE_REQUESTED || 
-                             next == OrderStatus.WARRANTY_REQUESTED || 
+            case DELIVERED -> next == OrderStatus.RETURN_REQUESTED ||
+                             next == OrderStatus.EXCHANGE_REQUESTED ||
+                             next == OrderStatus.WARRANTY_REQUESTED ||
                              next == OrderStatus.RETURNED;
             case CANCELLED -> false;
             default -> false;
@@ -324,10 +348,18 @@ public class OrderService {
                             .totalPrice(item.getTotalPrice())
                             .status(item.getStatus())
                             .imageUrl(imageUrl)
-                            .productId(item.getVariant().getProduct().getId())
-                            .isReviewed(reviewedProductIds.contains(item.getVariant().getProduct().getId()))
+                            .productId(product.getId())
+                            .isReviewed(reviewedProductIds.contains(product.getId()))
                             .build();
                 })
+                .collect(Collectors.toList());
+
+        List<OrderResponse.StatusHistoryDto> history = order.getStatusHistory().stream()
+                .map(h -> OrderResponse.StatusHistoryDto.builder()
+                        .status(h.getStatus())
+                        .note(h.getNote())
+                        .createdAt(h.getCreatedAt())
+                        .build())
                 .collect(Collectors.toList());
 
         return OrderResponse.builder()
@@ -338,14 +370,18 @@ public class OrderService {
                 .paymentStatus(order.getPaymentStatus())
                 .subtotal(order.getSubtotal())
                 .shippingFee(order.getShippingFee())
+                .discountAmount(order.getDiscountAmount())
+                .voucherCode(order.getVoucherCode())
                 .totalAmount(order.getTotalAmount())
                 .shippingName(order.getShippingName())
                 .shippingPhone(order.getShippingPhone())
                 .shippingAddress(order.getShippingAddress())
                 .note(order.getNote())
                 .createdAt(order.getCreatedAt())
+                .deliveredAt(order.getDeliveredAt())
                 .user(authService.toUserResponse(order.getUser(), null))
                 .items(items)
+                .statusHistory(history)
                 .build();
     }
 }

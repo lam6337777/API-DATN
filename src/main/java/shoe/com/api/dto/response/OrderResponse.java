@@ -22,14 +22,25 @@ public class OrderResponse {
     private BigDecimal subtotal;
     private BigDecimal shippingFee;
     private BigDecimal totalAmount;
+    private BigDecimal discountAmount;
+    private String voucherCode;
     private String shippingName;
     private String shippingPhone;
     private String shippingAddress;
     private String note;
     private LocalDateTime createdAt;
+    private LocalDateTime deliveredAt;
     private UserResponse user;
     private List<OrderItemDto> items;
+    private List<StatusHistoryDto> statusHistory;
 
+    @Data
+    @Builder
+    public static class StatusHistoryDto {
+        private OrderStatus status;
+        private String note;
+        private LocalDateTime createdAt;
+    }
 
 
     @Data

@@ -1,0 +1,6 @@
+target/
+uploads/
+config/local.properties
+.mvn/wrapper/maven-wrapper.jar
+*.csv
+pttk/

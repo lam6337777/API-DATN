@@ -53,6 +53,10 @@ public class ProductEntity {
     @Column(name = "sale_price", precision = 12, scale = 0)
     private BigDecimal salePrice;
 
+    /** Đường dẫn file mô hình 3D (.glb) để xem 360° trên trang chi tiết. Null = chỉ có ảnh. */
+    @Column(name = "model_3d_url")
+    private String model3dUrl;
+
     @Column(name = "is_active", nullable = false)
     @Builder.Default
     private Boolean isActive = true;

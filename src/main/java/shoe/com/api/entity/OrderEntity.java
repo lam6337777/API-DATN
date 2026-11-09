@@ -61,6 +61,9 @@ public class OrderEntity {
     @Builder.Default
     private BigDecimal discountAmount = BigDecimal.ZERO;
 
+    @Column(name = "voucher_code")
+    private String voucherCode;
+
     @Column(name = "shipping_name", nullable = false)
     private String shippingName;
 
@@ -92,6 +95,23 @@ public class OrderEntity {
     @OneToMany(mappedBy = "order", cascade = CascadeType.ALL)
     @Builder.Default
     private List<PaymentEntity> payments = new ArrayList<>();
+
+    @JsonIgnore
+    @OneToMany(mappedBy = "order", cascade = CascadeType.ALL, orphanRemoval = true)
+    @OrderBy("createdAt ASC")
+    @Builder.Default
+    private List<OrderStatusHistoryEntity> statusHistory = new ArrayList<>();
+
+    /** Đổi trạng thái và ghi lại vào lịch sử (dùng cho timeline theo dõi đơn). */
+    public void changeStatus(OrderStatus newStatus, String note) {
+        this.status = newStatus;
+        this.statusHistory.add(OrderStatusHistoryEntity.builder()
+                .order(this)
+                .status(newStatus)
+                .note(note)
+                .createdAt(LocalDateTime.now())
+                .build());
+    }
 
     @PrePersist
     protected void onCreate() {

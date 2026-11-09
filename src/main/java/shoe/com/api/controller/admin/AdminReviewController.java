@@ -15,6 +15,13 @@ public class AdminReviewController {
 
     private final ReviewService reviewService;
 
+    @GetMapping
+    public ResponseEntity<ApiResponse<Page<ReviewResponse>>> getAllReviews(
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "10") int size) {
+        return ResponseEntity.ok(ApiResponse.success(reviewService.getAllReviews(page, size)));
+    }
+
     @DeleteMapping("/{id}")
     public ResponseEntity<ApiResponse<Void>> deleteReview(@PathVariable Long id) {
         reviewService.deleteReview(id);

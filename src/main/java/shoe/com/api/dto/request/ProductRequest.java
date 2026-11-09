@@ -26,6 +26,9 @@ public class ProductRequest {
 
     private Boolean isFeatured = false;
 
+    /** Đường dẫn file .glb (không bắt buộc) */
+    private String model3dUrl;
+
     private List<VariantRequest> variants;
 
     private List<String> imageUrls;

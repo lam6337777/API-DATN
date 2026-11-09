@@ -82,9 +82,11 @@ public class ChatService {
                         // Nếu khách hàng gửi tin nhắn nhưng không tìm thấy Admin cụ thể, gửi cho bất kỳ
                         // Admin nào
                         if (sender.getRole() == shoe.com.api.enums.Role.CUSTOMER) {
+                                // Hộp thư chung: tin vẫn cần 1 receiver (cột NOT NULL) nên gán cho admin có id
+                                // nhỏ nhất; trạng thái đã đọc được tính theo cuộc hội thoại, không theo admin này.
                                 receiver = userRepository.findAll().stream()
                                                 .filter(u -> u.getRole() == shoe.com.api.enums.Role.ADMIN)
-                                                .findFirst()
+                                                .min(java.util.Comparator.comparing(UserEntity::getId))
                                                 .orElseThrow(() -> new ResourceNotFoundException("Hệ thống", "Admin",
                                                                 "không tồn tại"));
                         } else {
@@ -135,6 +137,16 @@ public class ChatService {
 
         public List<ChatMessageEntity> getMessagesForUser(Long userId) {
                 return chatMessageRepository.findAllMessagesByUserId(userId);
+        }
+
+        /** Admin mở cuộc hội thoại: đánh dấu đã đọc mọi tin khách này gửi, áp dụng cho tất cả admin */
+        @Transactional
+        public int markConversationRead(Long customerId) {
+                int updated = chatMessageRepository.markReadFromSender(customerId);
+                if (updated > 0) {
+                        notificationService.sendConversationRead(customerId);
+                }
+                return updated;
         }
 
         @Transactional
