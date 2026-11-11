@@ -31,10 +31,51 @@ public class ReviewService {
     /**
      * Lấy danh sách đánh giá của sản phẩm (Page DTO)
      */
-    public Page<ReviewResponse> getProductReviews(String productId, int page, int size) {
-        Pageable pageable = PageRequest.of(page, size);
-        return reviewRepository.findByProductIdOrderByCreatedAtDesc(productId, pageable)
-                .map(this::toReviewResponse);
+    @Transactional(readOnly = true)
+    public Page<ReviewResponse> getProductReviews(String productId, int page, int size, Integer rating, boolean withComment) {
+        Pageable pageable = PageRequest.of(Math.max(page, 0), Math.min(Math.max(size, 1), 50));
+        int star = (rating != null && rating >= 1 && rating <= 5) ? rating : 0;
+        return reviewRepository.searchByProduct(productId, star, withComment, pageable)
+                .map(r -> {
+                    ReviewResponse dto = toReviewResponse(r);
+                    // Trang công khai: che bớt tên khách và không lộ mã đơn
+                    dto.setFullName(maskName(dto.getFullName()));
+                    dto.setOrderCode(null);
+                    return dto;
+                });
+    }
+
+    /** Tổng quan đánh giá: điểm trung bình, tổng số, số có bình luận, phân bố 1–5 sao */
+    @Transactional(readOnly = true)
+    public java.util.Map<String, Object> getProductReviewSummary(String productId) {
+        java.util.Map<String, Long> counts = new java.util.LinkedHashMap<>();
+        for (int i = 5; i >= 1; i--) counts.put(String.valueOf(i), 0L);
+        long total = 0;
+        double sum = 0;
+        for (Object[] row : reviewRepository.countByRating(productId)) {
+            int star = ((Number) row[0]).intValue();
+            long n = ((Number) row[1]).longValue();
+            if (star >= 1 && star <= 5) counts.put(String.valueOf(star), n);
+            total += n;
+            sum += (double) star * n;
+        }
+        java.util.Map<String, Object> out = new java.util.LinkedHashMap<>();
+        out.put("average", total == 0 ? 0 : Math.round(sum / total * 10) / 10.0);
+        out.put("total", total);
+        out.put("withComment", reviewRepository.countWithComment(productId));
+        out.put("counts", counts);
+        return out;
+    }
+
+    /** "Nguyễn Văn An" → "N*********n" (giống cách các sàn TMĐT ẩn tên người đánh giá) */
+    static String maskName(String name) {
+        if (name == null || name.isBlank()) return "***";
+        String s = name.trim();
+        int len = s.codePointCount(0, s.length());
+        if (len <= 2) return s.substring(0, s.offsetByCodePoints(0, 1)) + "*";
+        String first = s.substring(0, s.offsetByCodePoints(0, 1));
+        String last = s.substring(s.offsetByCodePoints(0, len - 1));
+        return first + "*".repeat(Math.min(len - 2, 8)) + last;
     }
 
     /** Admin: tất cả đánh giá, mới nhất trước */
@@ -108,8 +149,24 @@ public class ReviewService {
                     .getImageUrl();
         }
 
+        // Phân loại (size/màu) khách đã mua trong đơn của đánh giá này
+        String variantSize = null, variantColor = null;
+        if (review.getOrder() != null && review.getOrder().getOrderItems() != null) {
+            String pid = review.getProduct().getId();
+            for (var it : review.getOrder().getOrderItems()) {
+                if (it.getVariant() != null && it.getVariant().getProduct() != null
+                        && pid.equals(it.getVariant().getProduct().getId())) {
+                    variantSize = it.getSize();
+                    variantColor = it.getColor();
+                    break;
+                }
+            }
+        }
+
         return ReviewResponse.builder()
                 .id(review.getId())
+                .variantSize(variantSize)
+                .variantColor(variantColor)
                 .fullName(review.getUser().getFullName())
                 .avatarUrl(review.getUser().getAvatarUrl())
                 .productId(review.getProduct().getId())

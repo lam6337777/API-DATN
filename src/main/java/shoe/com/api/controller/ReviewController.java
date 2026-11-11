@@ -21,9 +21,16 @@ public class ReviewController {
     public ResponseEntity<ApiResponse<Page<ReviewResponse>>> getProductReviews(
             @PathVariable String productId,
             @RequestParam(defaultValue = "0") int page,
-            @RequestParam(defaultValue = "10") int size) {
-        Page<ReviewResponse> reviews = reviewService.getProductReviews(productId, page, size);
+            @RequestParam(defaultValue = "10") int size,
+            @RequestParam(required = false) Integer rating,
+            @RequestParam(defaultValue = "false") boolean withComment) {
+        Page<ReviewResponse> reviews = reviewService.getProductReviews(productId, page, size, rating, withComment);
         return ResponseEntity.ok(ApiResponse.success(reviews));
+    }
+
+    @GetMapping("/product/{productId}/summary")
+    public ResponseEntity<ApiResponse<java.util.Map<String, Object>>> getProductReviewSummary(@PathVariable String productId) {
+        return ResponseEntity.ok(ApiResponse.success(reviewService.getProductReviewSummary(productId)));
     }
 
     @PostMapping

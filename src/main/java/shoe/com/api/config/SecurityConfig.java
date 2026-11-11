@@ -85,6 +85,8 @@ public class SecurityConfig {
                         .requestMatchers(HttpMethod.GET, "/api/products/**").permitAll()
                         .requestMatchers(HttpMethod.GET, "/api/categories/**").permitAll()
                         .requestMatchers(HttpMethod.GET, "/api/brands/**").permitAll()
+                        // Đánh giá sản phẩm: ai cũng xem được (như các sàn TMĐT)
+                        .requestMatchers(HttpMethod.GET, "/api/reviews/product/**").permitAll()
 
                         .requestMatchers("/uploads/**").permitAll()
 

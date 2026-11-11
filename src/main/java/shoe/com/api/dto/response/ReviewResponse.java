@@ -16,5 +16,8 @@ public class ReviewResponse {
     private Integer rating;
     private String comment;
     private String productImage;
+    /** Phân loại khách đã mua (size/màu) — hiển thị "Phân loại: Size 42" */
+    private String variantSize;
+    private String variantColor;
     private LocalDateTime createdAt;
 }

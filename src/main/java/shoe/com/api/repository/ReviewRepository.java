@@ -30,4 +30,19 @@ public interface ReviewRepository extends JpaRepository<ReviewEntity, Long> {
     Float avgRatingByProductId(@Param("productId") String productId);
 
     long countByProductId(String productId);
+
+    /** Lọc đánh giá công khai: theo số sao (null = tất cả) và/hoặc chỉ những đánh giá có bình luận */
+    @Query("SELECT r FROM ReviewEntity r WHERE r.product.id = :productId"
+            + " AND (:rating = 0 OR r.rating = :rating)"
+            + " AND (:withComment = false OR (r.comment IS NOT NULL AND TRIM(r.comment) <> ''))"
+            + " ORDER BY r.createdAt DESC")
+    Page<ReviewEntity> searchByProduct(@Param("productId") String productId, @Param("rating") int rating,
+            @Param("withComment") boolean withComment, Pageable pageable);
+
+    /** Số đánh giá theo từng mức sao: mỗi dòng [rating, count] */
+    @Query("SELECT r.rating, COUNT(r) FROM ReviewEntity r WHERE r.product.id = :productId GROUP BY r.rating")
+    List<Object[]> countByRating(@Param("productId") String productId);
+
+    @Query("SELECT COUNT(r) FROM ReviewEntity r WHERE r.product.id = :productId AND r.comment IS NOT NULL AND TRIM(r.comment) <> ''")
+    long countWithComment(@Param("productId") String productId);
 }
